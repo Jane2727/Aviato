@@ -12,59 +12,59 @@ erDiagram
 
     %% Пользователи
     USERS {
-        uuid id PK
-        string email
-        string username
-        string password_hash
-        timestamp created_at
-        timestamp updated_at
+        id uuid PK
+        email string
+        username string
+        password_hash string
+        created_at timestamp
+        updated_at timestamp
     }
 
     %% Объявления
     LISTINGS {
-        uuid id PK
-        uuid user_id FK
-        uuid category_id FK
-        uuid source_listing_id FK
-        string title
-        text description
-        decimal price
-        enum status
-        enum media_status
-        timestamp deleted_at
-        timestamp created_at
-        timestamp updated_at
+        id uuid PK
+        user_id uuid FK
+        category_id uuid FK
+        source_listing_id uuid FK
+        title string
+        description text
+        price decimal
+        status enum
+        media_status enum
+        deleted_at timestamp
+        created_at timestamp
+        updated_at timestamp
     }
 
     %% Категории
     CATEGORIES {
-        uuid id PK
-        string name
-        uuid parent_id FK
-        boolean is_active
-        jsonb attributes_schema
-        timestamp created_at
-        timestamp updated_at
+        id uuid PK
+        name string
+        parent_id uuid FK
+        is_active boolean
+        attributes_schema jsonb
+        created_at timestamp
+        updated_at timestamp
     }
 
     %% Медиафайлы
     LISTING_MEDIA {
-        uuid id PK
-        uuid listing_id FK
-        string s3_key
-        enum media_type
-        boolean is_primary
-        integer sort_order
-        enum transcoding_status
-        timestamp created_at
+        id uuid PK
+        listing_id uuid FK
+        s3_key string
+        media_type enum
+        is_primary boolean
+        sort_order integer
+        transcoding_status enum
+        created_at timestamp
     }
 
     %% Метаданные черновика
     DRAFT_METADATA {
-        uuid listing_id PK
-        timestamp expires_at
-        jsonb promo_options
-        timestamp last_edited_at
+        listing_id uuid PK
+        expires_at timestamp
+        promo_options jsonb
+        last_edited_at timestamp
     }
 
 %% Описание полей:
@@ -81,7 +81,7 @@ erDiagram
 %% enum transcoding_status — статус транскодинга, может принимать значения:
     %% PENDING | PROCESSING | COMPLETED | FAILED
 %% jsonb — бинарный JSON для хранения сложных структур данных
-%% text — длинный текст (неограниченной длины)
+%% text — длинный текст
 %% decimal — число с плавающей точкой (для цены)
 %% timestamp deleted_at — момент soft-delete (проставляется при переходе LISTINGS.status в DELETED);
     %% используется фоновым джобом для hard delete через 30 дней после этой отметки. NULL, если запись не удалена.
