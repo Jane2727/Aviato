@@ -24,9 +24,9 @@ Draft (Черновик) — временное объявление со ста
 Карточка объявления (владельца)
 
 - [Клик "Создать копию"]
-- POST /api/v1/listings/{id}/duplicate
-- [201] редирект на /drafts/{draftId}/edit
-- [4xx/5xx] показать уведомление с ошибкой
+  - POST /api/v1/listings/{id}/duplicate
+  - [201] редирект на /drafts/{draftId}/edit
+  - [4xx/5xx] показать уведомление с ошибкой
 
 Страница редактирования черновика (копии объявления)
 /drafts/{draftId}/edit
@@ -39,8 +39,8 @@ Draft (Черновик) — временное объявление со ста
   - [409 duplicates] открыть AntiSpamModal
 
 - [Клик "Отменить и выйти"]
-- открыть CancelModal
-- [Confirm] DELETE /drafts/{draftId} редирект в /my-ads
+  - открыть CancelModal
+  - [Confirm] DELETE /drafts/{draftId} редирект в /my-ads
 
 ### Экраны и переходы
 
