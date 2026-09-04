@@ -1,0 +1,152 @@
+@startuml draft
+skinparam maxMessageSize 200
+skinparam sequenceArrowThickness 1
+skinparam roundcorner 10
+skinparam sequenceParticipant underline
+
+actor User
+participant "Frontend" as FE
+participant "Backend\n(Draft API)" as BE
+participant "PostgreSQL" as DB
+participant "Message Queue" as MQ
+participant "Media Worker" as Worker
+participant "Object Storage\n(S3)" as S3
+participant "Anti-Spam\nService" as AntiSpam
+participant "Category\nService" as Category
+
+== Создание черновика ==
+
+User -> FE: Click "Создать копию"
+activate FE
+FE -> BE: POST /listings/{id}/duplicate
+activate BE
+BE -> DB: Check source listing status\n(must be ACTIVE or ARCHIVED)
+activate DB
+BE -> DB: Insert Listing\n(status=DRAFT, expires_at=NOW()+7d)
+BE -> DB: Insert DraftMetadata
+DB --> BE: Return draft_id
+deactivate DB
+BE -> MQ: Publish media_copy_task
+activate MQ
+BE --> FE: 201 Created\n(draft_id, expires_at)
+deactivate BE
+FE -> FE: Redirect to /drafts/{draftId}/edit
+deactivate FE
+
+== Асинхронное копирование медиа ==
+
+par Async Media Copying (без повторного транскодинга)
+    MQ -> Worker: Consume task
+    activate Worker
+
+    loop For each media file
+        alt Video and not transcoded
+            Worker -> Worker: Wait for original transcoding
+        end
+
+        Worker -> S3: CopyObject (Server-side)
+        activate S3
+        S3 --> Worker: Success
+        deactivate S3
+
+        Worker -> DB: Insert ListingMedia
+        activate DB
+        DB --> Worker: OK
+        deactivate DB
+    end
+
+    Worker -> DB: Update media_status=READY
+    activate DB
+    DB --> Worker: OK
+    deactivate DB
+    deactivate Worker
+else User interacts with draft (GET or edit)
+    User -> FE: Open/edit draft fields
+    activate FE
+    note over FE, BE: Любой запрос к draft_id (GET или PUT) продлевает TTL на 7 дней
+    FE -> BE: GET /drafts/{draft_id}\n(или PUT /drafts/{draft_id}, если поля изменены)
+    activate BE
+    BE -> DB: [PUT] Update draft data (если применимо)
+    activate DB
+    BE -> DB: Extend TTL (+7 days)
+    DB --> BE: OK
+    deactivate DB
+    BE --> FE: 200 OK\n(new expires_at)
+    deactivate BE
+    FE --> User: Show updated TTL
+    deactivate FE
+end
+deactivate MQ
+
+== Публикация черновика ==
+
+User -> FE: Click "Сохранить изменения"
+activate FE
+FE -> BE: PUT /drafts/{draft_id}/publish
+activate BE
+
+BE -> DB: Check media_status
+activate DB
+DB --> BE: media_status value
+deactivate DB
+
+alt media_status != READY
+    BE --> FE: 409 Conflict\n(Media is processing)
+    deactivate BE
+    FE -> User: Show Toast\n"Подождите, медиа ещё обрабатываются"
+else media_status == READY
+    BE -> Category: Check category.is_active
+    activate Category
+    Category --> BE: category status
+    deactivate Category
+
+    alt category not active
+        BE --> FE: 400 Bad Request\n(Category not active)
+        deactivate BE
+        FE -> User: Show Alert\n"Выберите новую категорию"
+        FE -> FE: Disable "Сохранить" button
+    else category active
+        BE -> AntiSpam: Check duplicates
+        activate AntiSpam
+        AntiSpam --> BE: duplicates info
+        deactivate AntiSpam
+
+        alt duplicates found (count >= threshold)
+            BE --> FE: 409 Conflict\n(Duplicates found)
+            deactivate BE
+            FE -> User: Show AntiSpamModal
+            activate User
+
+            alt User chooses "Изменить объявление"
+                User -> FE: Close modal, edit form
+                FE -> FE: Focus on description field
+            else User chooses "Всё равно опубликовать"
+                User -> FE: Click force publish
+                FE -> BE: PUT /drafts/{draft_id}/publish\n(force_publish=true)
+                activate BE
+                BE -> DB: Update status=MODERATION
+                activate DB
+                DB --> BE: OK
+                deactivate DB
+                BE --> FE: 200 OK
+                deactivate BE
+                FE -> User: Show Toast\n"Объявление отправлено на модерацию"
+                FE -> FE: Redirect to /my-ads/active
+            end
+            deactivate User
+
+        else no duplicates
+            BE -> DB: Update status=MODERATION
+            activate DB
+            DB --> BE: OK
+            deactivate DB
+            BE --> FE: 200 OK
+            deactivate BE
+            FE -> User: Show Toast\n"Объявление отправлено на модерацию"
+            FE -> FE: Redirect to /my-ads/active
+        end
+    end
+end
+deactivate FE
+
+@enduml

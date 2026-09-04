@@ -1,0 +1,87 @@
+%% ER-диаграмма данных
+
+erDiagram
+    %% Один пользователь создает много объявлений (1 - N)
+    USERS ||--o{ LISTINGS : creates
+    %% Одно объявление содержит много медиафайлов (1 - N)
+    LISTINGS ||--o{ LISTING_MEDIA : contains
+    %% Много объявлений принадлежат одной категории (N - 1)
+    LISTINGS }o--|| CATEGORIES : belongs_to
+    %% Одно объявление может иметь метаданные черновика (опционально, только для черновиков) (1 - 1)
+    LISTINGS ||--o| DRAFT_METADATA : has
+
+    %% Пользователи
+    USERS {
+        uuid id PK
+        string email
+        string username
+        string password_hash
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    %% Объявления
+    LISTINGS {
+        uuid id PK
+        uuid user_id FK
+        uuid category_id FK
+        uuid source_listing_id FK
+        string title
+        text description
+        decimal price
+        enum status
+        enum media_status
+        timestamp deleted_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    %% Категории
+    CATEGORIES {
+        uuid id PK
+        string name
+        uuid parent_id FK
+        boolean is_active
+        jsonb attributes_schema
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    %% Медиафайлы
+    LISTING_MEDIA {
+        uuid id PK
+        uuid listing_id FK
+        string s3_key
+        enum media_type
+        boolean is_primary
+        integer sort_order
+        enum transcoding_status
+        timestamp created_at
+    }
+
+    %% Метаданные черновика
+    DRAFT_METADATA {
+        uuid listing_id PK
+        timestamp expires_at
+        jsonb promo_options
+        timestamp last_edited_at
+    }
+
+%% Описание полей:
+
+%% PK — Primary Key (первичный ключ)
+%% FK — Foreign Key (внешний ключ)
+%% uuid — уникальный идентификатор
+%% enum status — статус объявления, может принимать значения:
+    %% DRAFT | ACTIVE | ARCHIVED | MODERATION | DELETED | BANNED
+%% enum media_status — статус медиа, может принимать значения:
+    %% PENDING | PROCESSING | READY
+%% enum media_type — тип медиа, может принимать значения:
+    %% IMAGE | VIDEO
+%% enum transcoding_status — статус транскодинга, может принимать значения:
+    %% PENDING | PROCESSING | COMPLETED | FAILED
+%% jsonb — бинарный JSON для хранения сложных структур данных
+%% text — длинный текст (неограниченной длины)
+%% decimal — число с плавающей точкой (для цены)
+%% timestamp deleted_at — момент soft-delete (проставляется при переходе LISTINGS.status в DELETED);
+    %% используется фоновым джобом для hard delete через 30 дней после этой отметки. NULL, если запись не удалена.
